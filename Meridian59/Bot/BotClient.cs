@@ -18,7 +18,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.ComponentModel;
-
+using System.Diagnostics;
 using Meridian59.Client;
 using Meridian59.Files;
 using Meridian59.Data.Models;
@@ -275,7 +275,12 @@ namespace Meridian59.Bot
                 case MessageTypeGameMode.CounterOffer:
                     HandleCounterOfferMessage((CounterOfferMessage)Message);
                     break;
-
+                case MessageTypeGameMode.CounterOffered:
+                    HandleOfferedMessage((OfferedMessage)Message);
+                    break;
+                case MessageTypeGameMode.BuyList:
+                    HandleBuyList((BuyListMessage)Message);
+                    break;
                 case MessageTypeGameMode.Create:
                     HandleCreateMessage((CreateMessage)Message);
                     break;
@@ -422,6 +427,21 @@ namespace Meridian59.Bot
         /// </summary>
         /// <param name="Message"></param>
         protected virtual void HandleCounterOfferMessage(CounterOfferMessage Message)
+        {
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="Message"></param>
+        protected virtual void HandleBuyList(BuyListMessage Message)
+        {
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="Message"></param>
+        protected virtual void HandleOfferedMessage(OfferedMessage Message)
         {
         }
 

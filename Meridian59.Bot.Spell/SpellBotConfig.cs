@@ -42,6 +42,9 @@ namespace Meridian59.Bot.Spell
         public const string XMLATTRIB_ONMAX     = "onmax";
         public const string XMLATTRIB_CAP       = "cap";
         public const string XMLATTRIB_TEMPLATE  = "template";
+        public const string XMLATTRIB_REAGENT = "reagent";
+        public const string XMLATTRIB_MAX = "max";
+        public const string XMLATTRIB_MIN = "min";
         public const string XMLVALUE_CAST       = "cast";
         public const string XMLVALUE_USE        = "use";
         public const string XMLVALUE_REST       = "rest";
@@ -53,14 +56,19 @@ namespace Meridian59.Bot.Spell
         public const string XMLVALUE_QUIT       = "quit";
         public const string XMLVALUE_SKIP       = "skip";
         public const string XMLVALUE_SELF       = "self";
+        public const string XMLVALUE_STORAGEGET = "storageget";
+ 
 
         public const string DEFAULTVAL_SPELLBOT_TEMPLATE = "";
         public const string DEFAULTVAL_SPELLBOT_TEMPLATENAME = "";
         public const string DEFAULTVAL_SPELLBOT_CAST_NAME = "";
+        public const string DEFAULTVAL_SPELLBOT_REAGENT = "";
         public const string DEFAULTVAL_SPELLBOT_CAST_TARGET = "";
         public const string DEFAULTVAL_SPELLBOT_CAST_WHERE = "";
         public const string DEFAULTVAL_SPELLBOT_CAST_ONMAX = "";
         public const uint DEFAULTVAL_SPELLBOT_SLEEP_DURATION = 1;
+        public const uint DEFAULTVAL_SPELLBOT_REAGENT_MAX = 100;
+        public const uint DEFAULTVAL_SPELLBOT_REAGENT_MIN = 0;
 
         #endregion
 
@@ -177,8 +185,11 @@ namespace Meridian59.Bot.Spell
             string text;
             string where;
             string onmax;
+            string reagent;
             uint cap;
             uint duration;
+            uint max;
+            uint min;
 
             foreach (XmlNode child in Reader.ChildNodes)
             {
@@ -232,6 +243,18 @@ namespace Meridian59.Bot.Spell
 
                         if (text != null)
                             template.Tasks.Add(new BotTaskSay(text));
+                        break;
+
+                    case XMLVALUE_STORAGEGET:
+                        target = (child.Attributes[XMLATTRIB_TARGET] != null) ?
+                                child.Attributes[XMLATTRIB_TARGET].Value : DEFAULTVAL_SPELLBOT_CAST_TARGET;
+                        reagent = (child.Attributes[XMLATTRIB_REAGENT] != null) ?
+                                child.Attributes[XMLATTRIB_REAGENT].Value : DEFAULTVAL_SPELLBOT_CAST_NAME;
+                        max= (child.Attributes[XMLATTRIB_MAX] != null && UInt32.TryParse(child.Attributes[XMLATTRIB_MAX].Value, out max)) ?
+                                Math.Min(10000, max) : DEFAULTVAL_SPELLBOT_REAGENT_MAX;
+                        min = (child.Attributes[XMLATTRIB_MAX] != null && UInt32.TryParse(child.Attributes[XMLATTRIB_MIN].Value, out min)) ?
+                                min : DEFAULTVAL_SPELLBOT_REAGENT_MIN;
+                        template.Tasks.Add(new BotTaskStorageGet(reagent,target,max,min) );
                         break;
 
                 }

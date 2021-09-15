@@ -15,7 +15,9 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using Meridian59.Data.Models;
 using Meridian59.Data;
 using Meridian59.Protocol.GameMessages;
@@ -40,6 +42,7 @@ namespace Meridian59.Bot.Spell
         protected BotTask currentTask;
         protected uint imps = 0;
 
+        protected List<BuyRequest> buyRequests = new List<BuyRequest>();
         /// <summary>
         /// Constructor
         /// </summary>
@@ -98,6 +101,77 @@ namespace Meridian59.Bot.Spell
                 SendSayGroupMessage(
                     Data.Trade.TradePartner.ID,
                     "I will take that, master " + Data.Trade.TradePartner.Name);
+            }
+        }
+
+        /// <summary>
+        /// Handles someone offers you first
+        /// </summary>
+        /// <param name="Message"></param>
+        protected override void HandleBuyList(BuyListMessage Message)
+        {
+            base.HandleBuyList(Message);
+
+            //Check if we currently want to buy something
+            if (!buyRequests.Any()) return;
+
+            List<BuyRequest> buyThisList = new List<BuyRequest>();
+
+            //Assemble List of reas we want to buy
+            foreach (BuyRequest request in buyRequests)
+            {
+                //Must be from our requested NPC
+                if (request.TargetId == Message.TradePartner.ID)
+                {
+                    //Look for the Item we want
+                    foreach (TradeOfferObject item in Message.OfferedItems)
+                    {
+                        if (item.Name.ToLowerInvariant().Equals(request.Reagent))
+                        {
+                            // Check the inventory for the reagent
+                            InventoryObject inventoryObject =
+                                    Data.InventoryObjects.GetItemByName(request.Reagent, false);
+
+                            // Reas in inventory found, calculate how much to get to reach max amount
+                            if (inventoryObject != null)
+                            {
+                                var currentInventoryAmount = inventoryObject.Count;
+                                // More or equal reas in inventory then max
+                                if (request.Max >= currentInventoryAmount)
+                                {
+                                    Log("WARN", "You have the max amount of " + currentInventoryAmount + " " + request.Reagent + " in your inventory!");
+                                    break;
+                                }
+                                //Calculate new wanted amount to get
+                                request.RealGetAmount = request.Max - currentInventoryAmount;
+                            }
+                            // No reas in inventory, desired amount is max amount
+                            else
+                            {
+                                request.RealGetAmount = request.Max;
+                            }
+
+                            // Adjust get amount by how much can be get from NPC
+                            if (item.Count < request.RealGetAmount)
+                            {
+                                //Not enough reas in storage, get the maximum possible
+                                request.RealGetAmount = item.Count;
+                            }
+
+                            // The item Id with that needs to be requested from the NPC
+                            request.ItemId = item.ID;
+                            // Add to list of items to buy
+                            buyThisList.Add(request);
+                        }
+                    }
+                }
+            }
+
+            //This is what we going to buy
+            if (buyThisList.Any())
+            {
+                var itemsToBuy = buyThisList.Select(x => new ObjectID(x.ItemId, x.RealGetAmount)).ToArray();
+                SendReqBuyItemsMessage(Message.TradePartner.ID, itemsToBuy);
             }
         }
 
@@ -206,13 +280,59 @@ namespace Meridian59.Bot.Spell
                 
                 // say
                 else if (currentTask is BotTaskSay)               
-                    DoSay((BotTaskSay)currentTask);                
+                    DoSay((BotTaskSay)currentTask);
+                
+                // get reas from storage
+                else if(currentTask is BotTaskStorageGet)
+                    DoGetReasStorage((BotTaskStorageGet)currentTask);
             }
 
             double slp = (tickSleepUntil - GameTick.Current) / (double)Common.GameTick.MSINSECOND;
             
             // draw sleep & imps
             DrawDynamic("SLP: " + string.Format("{0:N0}", slp).PadRight(3) + " IMPS: " + imps.ToString().PadRight(3));
+        }
+
+        protected void DoGetReasStorage(BotTaskStorageGet Task)
+        {
+            string npcName = Task.Target;
+            string rea = Task.Reagent;
+            uint maxAmount = Task.Max;
+            uint minAmount = Task.Min;
+            // try to get the target
+            RoomObject roomObject =
+                    Data.RoomObjects.GetItemByName(npcName, false);
+
+            // target npc not found
+            if (roomObject == null)
+            {
+                // log
+                Log("WARN", "Can't execute task 'storageget'. RoomObject " + npcName + " not found.");
+
+                return;
+            }
+            // check if minimum amount is reached
+            InventoryObject inventoryObject =
+                    Data.InventoryObjects.GetItemByName(rea, false);
+
+            // Have no more or too little
+            if(inventoryObject == null || inventoryObject.Count <= minAmount)
+            {
+                // add pending buy request
+                buyRequests.Add(new BuyRequest(rea, roomObject.ID, maxAmount));
+
+                // select the NPC as Target
+                Data.TargetID = roomObject.ID;
+
+                // send buy request to NPC
+                SendReqBuyMessage();
+
+            }
+            // Have still enough
+            else
+            {
+                Log("BOT", "Have still "+ inventoryObject.Count + " " + inventoryObject.Name);
+            }
         }
 
         /// <summary>
@@ -427,6 +547,43 @@ namespace Meridian59.Bot.Spell
 
             // log
             Log("BOT", "Executed task 'say': " + Task.Text);
+        }
+    }
+
+    public class BuyRequest
+    {
+        //Name of reagent to get
+        public string Reagent { get; }
+        /// <summary>
+        /// The Name of the NPC to get from
+        /// </summary>
+        public uint TargetId { get; }
+
+        /// <summary>
+        /// The maximum amount in inventory
+        /// </summary>
+        public uint Max { get; }
+
+        /// <summary>
+        /// Gets or sets the item identifier to request from the NPC.
+        /// </summary>
+        /// <value>
+        /// The item identifier.
+        /// </value>
+        public uint ItemId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Amount to request from the NPC.
+        /// </summary>
+        /// <value>
+        /// The real amount to get from the NPC.
+        /// </value>
+        public uint RealGetAmount { get; set; } = 0;
+        public BuyRequest(string reagent, uint targetId, uint max)
+        {
+            Reagent = reagent.ToLowerInvariant();
+            TargetId = targetId;
+            Max = max;
         }
     }
 }
