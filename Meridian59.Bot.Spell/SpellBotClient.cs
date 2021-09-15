@@ -137,7 +137,7 @@ namespace Meridian59.Bot.Spell
                             {
                                 var currentInventoryAmount = inventoryObject.Count;
                                 // More or equal reas in inventory then max
-                                if (request.Max >= currentInventoryAmount)
+                                if (request.Max <= currentInventoryAmount)
                                 {
                                     Log("WARN", "You have the max amount of " + currentInventoryAmount + " " + request.Reagent + " in your inventory!");
                                     break;
@@ -150,14 +150,7 @@ namespace Meridian59.Bot.Spell
                             {
                                 request.RealGetAmount = request.Max;
                             }
-
-                            // Adjust get amount by how much can be get from NPC
-                            if (item.Count < request.RealGetAmount)
-                            {
-                                //Not enough reas in storage, get the maximum possible
-                                request.RealGetAmount = item.Count;
-                            }
-
+                            
                             // The item Id with that needs to be requested from the NPC
                             request.ItemId = item.ID;
                             // Add to list of items to buy
@@ -331,7 +324,7 @@ namespace Meridian59.Bot.Spell
             // Have still enough
             else
             {
-                Log("BOT", "Have still "+ inventoryObject.Count + " " + inventoryObject.Name);
+                Log("BOT", "Have still "+ inventoryObject.Count + " " + inventoryObject.Name + ". Minimum of "+ Task.Min + " not reached!" );
             }
         }
 
